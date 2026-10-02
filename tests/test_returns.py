@@ -2,26 +2,29 @@ import numpy as np
 import pandas as pd
 
 from risk_engine.returns import (
-    annualized_return,
-    log_returns,
+    calculate_annualized_return,
+    calculate_log_returns,
 )
 
 
 def test_log_returns():
+    prices = pd.Series(
+        [
+            100,
+            110,
+            121,
+        ]
+    )
 
-    prices = pd.Series([
-        100,
-        110,
-        121,
-    ])
+    result = calculate_log_returns(prices)
 
-    result = log_returns(prices)
-
-    expected = pd.Series([
-        np.nan,
-        np.log(110 / 100),
-        np.log(121 / 110),
-    ])
+    expected = pd.Series(
+        [
+            np.nan,
+            np.log(110 / 100),
+            np.log(121 / 110),
+        ]
+    )
 
     pd.testing.assert_series_equal(
         result,
@@ -31,18 +34,11 @@ def test_log_returns():
 
 
 def test_annualized_return():
+    daily_log_returns = pd.Series([0.001] * 252)
 
-    daily_log_returns = pd.Series(
-        [0.001] * 252
-    )
+    result = calculate_annualized_return(daily_log_returns)
 
-    result = annualized_return(
-        daily_log_returns
-    )
-
-    expected = np.exp(
-        0.001 * 252
-    ) - 1
+    expected = np.exp(0.001 * 252) - 1
 
     assert np.isclose(
         result,
