@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 
 from risk_engine.returns import (
-    log_returns,
     annualized_return,
+    log_returns,
 )
 
 
