@@ -27,4 +27,4 @@ def calculate_the_annual_portfolio_return(weights_array: pd.Series, individual_r
 
 
 def calculate_sharpe_ratio_of_portfolio(risk_free_rate: float, portfolio_return: pd.Series, portfolio_volatility: pd.Series):
-    return (risk_free_rate - portfolio_return) / portfolio_volatility
+    return (portfolio_return - risk_free_rate) / portfolio_volatility
