@@ -4,13 +4,13 @@ import pytest
 
 # Assuming your functions are saved in risk.py
 from risk_engine.risk import (
-    calculate_annual_variance_of_stocks,
-    calculate_annual_std_deviation_of_stocks,
-    calculate_annual_covariance_of_stocks,
     calculate_annual_correlation_of_stocks,
+    calculate_annual_covariance_of_stocks,
+    calculate_annual_std_deviation_of_stocks,
+    calculate_annual_variance_of_stocks,
     calculate_annual_variance_of_the_portfolio,
-    calculate_the_annual_portfolio_return,
     calculate_sharpe_ratio_of_portfolio,
+    calculate_the_annual_portfolio_return,
 )
 
 
