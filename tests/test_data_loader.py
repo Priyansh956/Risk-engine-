@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from data_loader.data_loader import (
+from risk_engine.data_loader import (
     fetch_market_data,
     fetch_risk_free_rate,
     fetch_stock_data,

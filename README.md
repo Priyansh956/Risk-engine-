@@ -104,7 +104,7 @@ paths = simulate_gbm_prices(
     initial_prices=prices.iloc[-1],
     drift=calculate_daily_drift(log_returns),
     daily_std=log_returns.std(),
-    time_horizon=252,       # trading days (about one year)
+    time_horizon=252,  # trading days (about one year)
     num_simulations=1_000,
     random_state=1,
 )

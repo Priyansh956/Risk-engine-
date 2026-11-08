@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from capm.capm import (
+from risk_engine.capm import (
     calculate_beta,
     calculate_capm_expected_return,
     calculate_covariance_with_market,

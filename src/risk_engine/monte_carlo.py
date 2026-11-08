@@ -38,23 +38,29 @@ def calculate_daily_drift(
 
 def simulate_gbm_returns(
     drift: np.ndarray | pd.Series | float,
-    daily_std: np.ndarray | pd.Series | float,
-    time_horizon: int,
-    num_simulations: int,
+    daily_std: np.ndarray | pd.Series | float | None = None,
+    time_horizon: int = 252,
+    num_simulations: int = 1000,
     random_state: int | None = None,
+    covariance_matrix: np.ndarray | pd.DataFrame | None = None,
 ) -> np.ndarray:
     """
     Generate daily returns using Geometric Brownian Motion (GBM).
+
+    Supports correlated multi-asset shocks via Cholesky decomposition of the covariance matrix.
 
     Parameters
     ----------
     drift : np.ndarray, pd.Series, or float
         Daily drift per asset.
-    daily_std : np.ndarray, pd.Series, or float
-        Daily standard deviation per asset.
-    time_horizon : int
+    daily_std : np.ndarray, pd.Series, or float, optional
+        Daily standard deviation per asset (used when covariance_matrix is not supplied).
+    covariance_matrix : np.ndarray or pd.DataFrame, optional
+        Daily covariance matrix of asset returns. When provided, correlated shocks
+        are drawn using Cholesky decomposition (Sigma = L @ L.T).
+    time_horizon : int, default=252
         Number of forward time steps (days) to simulate.
-    num_simulations : int
+    num_simulations : int, default=1000
         Number of simulation paths / iterations.
     random_state : int or None, default=None
         Random seed for reproducibility.
@@ -71,10 +77,32 @@ def simulate_gbm_returns(
         raise ValueError("num_simulations must be greater than zero.")
 
     drift_arr = np.asarray(drift if not isinstance(drift, pd.Series) else drift.values, dtype=float)
-    std_arr = np.asarray(daily_std if not isinstance(daily_std, pd.Series) else daily_std.values, dtype=float)
-
-    is_1d_asset = drift_arr.ndim == 0 or (drift_arr.ndim == 1 and drift_arr.size == 1)
     rng = np.random.default_rng(random_state)
+
+    if covariance_matrix is not None:
+        cov_arr = np.asarray(covariance_matrix if not isinstance(covariance_matrix, pd.DataFrame) else covariance_matrix.values, dtype=float)
+        if cov_arr.ndim != 2 or cov_arr.shape[0] != cov_arr.shape[1]:
+            raise ValueError("covariance_matrix must be a square 2D matrix.")
+
+        num_assets = cov_arr.shape[0]
+        if drift_arr.ndim == 0 or drift_arr.size != num_assets:
+            raise ValueError(f"drift length ({drift_arr.size}) does not match covariance dimension ({num_assets}).")
+
+        try:
+            chol = np.linalg.cholesky(cov_arr)
+        except np.linalg.LinAlgError:
+            jitter = 1e-8 * np.eye(num_assets)
+            chol = np.linalg.cholesky(cov_arr + jitter)
+
+        z = rng.normal(0.0, 1.0, (time_horizon, num_simulations, num_assets))
+        correlated_shocks = z @ chol.T
+        return np.exp(drift_arr + correlated_shocks)
+
+    if daily_std is None:
+        raise ValueError("Either daily_std or covariance_matrix must be provided.")
+
+    std_arr = np.asarray(daily_std if not isinstance(daily_std, pd.Series) else daily_std.values, dtype=float)
+    is_1d_asset = drift_arr.ndim == 0 or (drift_arr.ndim == 1 and drift_arr.size == 1)
 
     if is_1d_asset:
         d = float(drift_arr)
@@ -90,13 +118,16 @@ def simulate_gbm_returns(
 def simulate_gbm_prices(
     initial_prices: np.ndarray | pd.Series | float,
     drift: np.ndarray | pd.Series | float,
-    daily_std: np.ndarray | pd.Series | float,
-    time_horizon: int,
-    num_simulations: int,
+    daily_std: np.ndarray | pd.Series | float | None = None,
+    time_horizon: int = 252,
+    num_simulations: int = 1000,
     random_state: int | None = None,
+    covariance_matrix: np.ndarray | pd.DataFrame | None = None,
 ) -> np.ndarray:
     """
     Simulate future stock price paths using Geometric Brownian Motion.
+
+    Supports correlated asset paths via covariance_matrix Cholesky decomposition.
 
     Parameters
     ----------
@@ -104,14 +135,16 @@ def simulate_gbm_prices(
         Current/starting price for each asset.
     drift : np.ndarray, pd.Series, or float
         Daily drift.
-    daily_std : np.ndarray, pd.Series, or float
-        Daily standard deviation.
-    time_horizon : int
+    daily_std : np.ndarray, pd.Series, or float, optional
+        Daily standard deviation per asset.
+    time_horizon : int, default=252
         Number of forward days to forecast.
-    num_simulations : int
+    num_simulations : int, default=1000
         Number of simulation paths.
     random_state : int or None, default=None
         Random seed for reproducibility.
+    covariance_matrix : np.ndarray or pd.DataFrame, optional
+        Daily covariance matrix for correlated asset simulations.
 
     Returns
     -------
@@ -125,6 +158,7 @@ def simulate_gbm_prices(
         time_horizon=time_horizon,
         num_simulations=num_simulations,
         random_state=random_state,
+        covariance_matrix=covariance_matrix,
     )
 
     s0 = np.asarray(initial_prices if not isinstance(initial_prices, pd.Series) else initial_prices.values, dtype=float)
@@ -187,24 +221,30 @@ def summarize_terminal_prices(
 
 def simulate_portfolio_paths(
     price_paths: np.ndarray,
-    weights: np.ndarray | list[float],
+    weights: np.ndarray | list[float] | pd.Series,
+    initial_portfolio_value: float = 1.0,
 ) -> np.ndarray:
     """
-    Calculate the total portfolio value across all time steps and iterations.
+    Calculate portfolio value paths over time, weighting by capital allocation.
+
+    Weights are applied to price paths normalized by each asset's starting price,
+    correctly modeling holding dollar allocations rather than raw share counts.
 
     Parameters
     ----------
     price_paths : np.ndarray
         3D simulated price paths of shape (time_horizon, num_simulations, num_assets).
-    weights : np.ndarray or list[float]
-        Portfolio weights of shape (num_assets,).
+    weights : np.ndarray, list[float], or pd.Series
+        Portfolio capital weights of shape (num_assets,).
+    initial_portfolio_value : float, default=1.0
+        Starting portfolio capital value.
 
     Returns
     -------
     np.ndarray
         Simulated portfolio paths of shape (time_horizon, num_simulations).
     """
-    weights_arr = np.asarray(weights, dtype=float)
+    weights_arr = np.asarray(weights if not isinstance(weights, pd.Series) else weights.values, dtype=float)
     if price_paths.ndim != 3:
         raise ValueError("price_paths must have shape (time_horizon, num_simulations, num_assets).")
 
@@ -212,10 +252,19 @@ def simulate_portfolio_paths(
     if len(weights_arr) != num_assets:
         raise ValueError(f"weights length ({len(weights_arr)}) does not match asset count ({num_assets}).")
 
-    if not np.isclose(np.sum(weights_arr), 1.0, atol=1e-4):
+    if not np.isclose(np.sum(weights_arr), 1.0, atol=1e-3):
         weights_arr = weights_arr / np.sum(weights_arr)
 
-    return np.dot(price_paths, weights_arr)
+    # Normalize price paths by initial price S_0 for each asset so weights represent dollar allocation
+    s0 = price_paths[0:1, :, :]  # Shape (1, num_simulations, num_assets)
+    if np.any(s0 <= 0):
+        raise ValueError("Initial prices must be strictly positive.")
+
+    normalized_price_paths = price_paths / s0
+
+    # Total portfolio value = initial_value * sum(w_i * S_{t, i} / S_{0, i})
+    portfolio_paths = initial_portfolio_value * np.dot(normalized_price_paths, weights_arr)
+    return portfolio_paths
 
 
 def analyze_scenarios(
@@ -271,59 +320,4 @@ def analyze_scenarios(
         "bull_count": int(bull_paths.shape[1]),
         "base_count": int(base_paths.shape[1]),
         "bear_count": int(bear_paths.shape[1]),
-    }
-
-
-def simulate_gross_profit(
-    revenue_mean: float | np.ndarray | pd.Series,
-    revenue_std: float | np.ndarray | pd.Series,
-    cogs_percentage_mean: float,
-    cogs_percentage_std: float = 0.0,
-    num_simulations: int = 1000,
-    random_state: int | None = None,
-) -> dict[str, np.ndarray]:
-    """
-    Run Monte Carlo simulation for revenue, COGS, and gross profit.
-
-    Parameters
-    ----------
-    revenue_mean : float, np.ndarray, or pd.Series
-        Expected revenue.
-    revenue_std : float, np.ndarray, or pd.Series
-        Standard deviation of revenue.
-    cogs_percentage_mean : float
-        Mean percentage of revenue that COGS represents.
-    cogs_percentage_std : float, default=0.0
-        Standard deviation of COGS percentage.
-    num_simulations : int, default=1000
-        Number of simulation iterations.
-    random_state : int or None, default=None
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    dict[str, np.ndarray]
-        Simulated arrays for "revenue", "cost_of_goods_sold", and "gross_profit".
-    """
-    rng = np.random.default_rng(random_state)
-    rev_mean = np.asarray(revenue_mean if not isinstance(revenue_mean, pd.Series) else revenue_mean.values, dtype=float)
-    rev_std = np.asarray(revenue_std if not isinstance(revenue_std, pd.Series) else revenue_std.values, dtype=float)
-
-    cogs_mean = cogs_percentage_mean / 100.0 if cogs_percentage_mean > 1.0 else cogs_percentage_mean
-    cogs_std = cogs_percentage_std / 100.0 if cogs_percentage_std > 1.0 else cogs_percentage_std
-
-    if rev_mean.ndim > 0 and rev_mean.size > 1:
-        size = (num_simulations, len(rev_mean))
-    else:
-        size = (num_simulations, 1)
-
-    revenue = rng.normal(loc=rev_mean, scale=rev_std, size=size)
-    cogs_factors = rng.normal(loc=cogs_mean, scale=cogs_std, size=size)
-    cogs = -(revenue * cogs_factors)
-    gross_profit = revenue + cogs
-
-    return {
-        "revenue": revenue,
-        "cost_of_goods_sold": cogs,
-        "gross_profit": gross_profit,
     }
