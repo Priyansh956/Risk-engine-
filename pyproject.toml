@@ -9,7 +9,10 @@ description = "Quantitative portfolio risk and analytics engine"
 requires-python = ">=3.11"
 dependencies = [
     "numpy",
-    "pandas"
+    "pandas",
+    "scipy",
+    "statsmodels",
+    "yfinance"
 ]
 
 [tool.setuptools.packages.find]

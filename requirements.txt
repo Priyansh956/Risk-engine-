@@ -1,2 +1,6 @@
-numpy 
+numpy
 pandas
+scipy
+statsmodels
+yfinance
+
