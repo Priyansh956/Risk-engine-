@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from markowitz.markowitz import (
+from risk_engine.markowitz import (
     efficient_frontier,
     portfolio_expected_return,
     portfolio_metrics,

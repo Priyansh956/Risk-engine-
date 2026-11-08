@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from monte_carlo.monte_carlo import (
+from risk_engine.monte_carlo import (
     analyze_scenarios,
     calculate_daily_drift,
     simulate_gbm_prices,

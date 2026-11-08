@@ -1,3 +1,6 @@
+import json
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -72,11 +75,13 @@ def test_analyze_portfolio_success(mock_portfolio_prices, mock_market_prices):
     assert scenarios["total_iterations"] == 200
     assert scenarios["bull_count"] + scenarios["base_count"] + scenarios["bear_count"] == 200
 
-    # Serialization
+    # JSON Serialization test (verifies Item 2: to_dict is JSON serializable)
     res_dict = result.to_dict()
     assert isinstance(res_dict, dict)
     assert "portfolio_return" in res_dict
     assert "monte_carlo_summary" in res_dict
+    json_str = json.dumps(res_dict)
+    assert isinstance(json_str, str)
 
 
 def test_analyze_portfolio_validation_weights_sum(mock_portfolio_prices):
@@ -88,6 +93,7 @@ def test_analyze_portfolio_validation_weights_sum(mock_portfolio_prices):
             tickers=tickers,
             weights=weights,
             prices=mock_portfolio_prices,
+            min_history=30,
         )
 
 
@@ -100,6 +106,7 @@ def test_analyze_portfolio_validation_weights_length(mock_portfolio_prices):
             tickers=tickers,
             weights=weights,
             prices=mock_portfolio_prices,
+            min_history=30,
         )
 
 
@@ -112,6 +119,21 @@ def test_analyze_portfolio_validation_negative_weights(mock_portfolio_prices):
             tickers=tickers,
             weights=weights,
             prices=mock_portfolio_prices,
+            min_history=30,
+        )
+
+
+def test_analyze_portfolio_validation_duplicate_tickers(mock_portfolio_prices):
+    # Tests Item 5: duplicate check
+    tickers = ["AAPL", "AAPL"]
+    weights = [0.5, 0.5]
+
+    with pytest.raises(ValueError, match="Duplicate tickers detected"):
+        analyze_portfolio(
+            tickers=tickers,
+            weights=weights,
+            prices=mock_portfolio_prices,
+            min_history=30,
         )
 
 
@@ -124,6 +146,7 @@ def test_analyze_portfolio_validation_missing_tickers(mock_portfolio_prices):
             tickers=tickers,
             weights=weights,
             prices=mock_portfolio_prices,
+            min_history=30,
         )
 
 
@@ -146,3 +169,44 @@ def test_analyze_portfolio_validation_insufficient_history(mock_portfolio_prices
             prices=mock_portfolio_prices,
             min_history=100,
         )
+
+
+def test_analyze_portfolio_warnings_and_fallbacks(mock_portfolio_prices):
+    # Tests Item 1 & Item 6: warnings list and short sample warning
+    tickers = ["AAPL", "MSFT"]
+    weights = [0.5, 0.5]
+
+    with (
+        patch("risk_engine.portfolio.fetch_market_data", side_effect=RuntimeError("Network offline")),
+        patch("risk_engine.portfolio.fetch_risk_free_rate", side_effect=RuntimeError("Network offline")),
+    ):
+        result = analyze_portfolio(
+            tickers=tickers,
+            weights=weights,
+            prices=mock_portfolio_prices,
+            min_history=30,
+            raise_on_fallback=False,
+        )
+
+        assert len(result.warnings) >= 2
+        assert any("Risk-free rate" in w for w in result.warnings)
+        assert any("Market benchmark data" in w for w in result.warnings)
+        assert any("<252" in w for w in result.warnings)
+
+        serialized = json.dumps(result.to_dict())
+        assert "warnings" in json.loads(serialized)
+
+
+def test_analyze_portfolio_raise_on_fallback(mock_portfolio_prices):
+    tickers = ["AAPL", "MSFT"]
+    weights = [0.5, 0.5]
+
+    with patch("risk_engine.portfolio.fetch_risk_free_rate", side_effect=RuntimeError("API Error")):
+        with pytest.raises(RuntimeError, match="Failed to fetch risk-free rate"):
+            analyze_portfolio(
+                tickers=tickers,
+                weights=weights,
+                prices=mock_portfolio_prices,
+                min_history=30,
+                raise_on_fallback=True,
+            )
