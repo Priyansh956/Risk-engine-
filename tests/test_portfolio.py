@@ -62,6 +62,13 @@ def test_analyze_portfolio_success(mock_portfolio_prices, mock_market_prices):
     assert len(result.individual_betas) == 2
     assert len(result.weights) == 2
 
+    # VaR / CVaR metrics
+    assert "historical_var_95" in result.var_metrics
+    assert "historical_cvar_95" in result.var_metrics
+    assert "parametric_var_95" in result.var_metrics
+    assert result.var_metrics["historical_var_95"] > 0
+    assert result.var_metrics["historical_cvar_95"] >= result.var_metrics["historical_var_95"]
+
     # Monte Carlo summary
     mc = result.monte_carlo_summary
     assert "terminal_mean" in mc

@@ -52,11 +52,20 @@ from risk_engine.risk import (
     calculate_sharpe_ratio_of_portfolio,
     calculate_the_annual_portfolio_return,
 )
+from risk_engine.var import (
+    backtest_var,
+    calculate_historical_cvar,
+    calculate_historical_var,
+    calculate_parametric_cvar,
+    calculate_parametric_var,
+    calculate_portfolio_var_cvar,
+)
 
 __all__ = [
     "PortfolioAnalysisResult",
     "analyze_portfolio",
     "analyze_scenarios",
+    "backtest_var",
     "calculate_annual_correlation_of_stocks",
     "calculate_annual_covariance_of_stocks",
     "calculate_annual_std_deviation_of_stocks",
@@ -69,9 +78,14 @@ __all__ = [
     "calculate_daily_drift",
     "calculate_daily_risk_free_rate",
     "calculate_excess_returns",
+    "calculate_historical_cvar",
+    "calculate_historical_var",
     "calculate_log_returns",
     "calculate_market_returns",
     "calculate_market_variance",
+    "calculate_parametric_cvar",
+    "calculate_parametric_var",
+    "calculate_portfolio_var_cvar",
     "calculate_sharpe_ratio_of_portfolio",
     "calculate_the_annual_portfolio_return",
     "compare_betas",
