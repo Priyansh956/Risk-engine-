@@ -1,5 +1,13 @@
 """Interactive Streamlit Web Application for Quant Risk Engine."""
 
+import sys
+from pathlib import Path
+
+# Ensure src/ is on sys.path for Streamlit Cloud deployment
+src_path = str(Path(__file__).resolve().parent / "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
