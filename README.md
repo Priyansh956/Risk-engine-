@@ -15,7 +15,7 @@ Give it your stock tickers and capital weights, and it returns annualized return
 
 Try the engine directly in your browser without installing:
 
-👉 **[Launch Streamlit Web App](https://share.streamlit.io/)** *(or run locally via `streamlit run app.py`)*
+👉 **[Launch Streamlit Web App]([https://pkds-risk-engine.streamlit.app]))** *(or run locally via `streamlit run app.py`)*
 
 | Monte Carlo Fan Chart (Correlated GBM) | Markowitz Efficient Frontier |
 |:---:|:---:|
