@@ -1,31 +1,55 @@
 # Quant Risk Engine
 
 [![CI](https://github.com/Priyansh956/Risk-engine-/actions/workflows/ci.yml/badge.svg)](https://github.com/Priyansh956/Risk-engine-/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-A Python library for quantitative portfolio analysis. Give it historical prices and portfolio weights, and it computes returns, risk, Sharpe ratio, Markowitz risk-return analysis, CAPM beta, and Monte Carlo price simulations.
+A quantitative portfolio risk, optimization, and analytics engine in Python.
 
-> **Status: early development (v0.1.0).** The core calculations are implemented and tested, but the project is still being built out. See [Known limitations](#known-limitations) before relying on any results, and the [Roadmap](#roadmap) for what is coming next.
+Give it your stock tickers and capital weights, and it returns annualized return, volatility, Sharpe ratio, CAPM beta, Value at Risk (VaR), Conditional VaR (Expected Shortfall), and a correlated multivariate Monte Carlo forecast.
+
+---
+
+## 🚀 Live Interactive App
+
+Try the engine directly in your browser without installing:
+
+👉 **[Launch Streamlit Web App](https://share.streamlit.io/)** *(or run locally via `streamlit run app.py`)*
+
+| Monte Carlo Fan Chart (Correlated GBM) | Markowitz Efficient Frontier |
+|:---:|:---:|
+| ![Monte Carlo Fan Chart](assets/monte_carlo_fan_chart.png) | ![Markowitz Efficient Frontier](assets/efficient_frontier.png) |
+
+---
 
 ## Features
 
-| Module | What it does |
-|---|---|
-| `risk_engine` | Log returns, annualized return, annualized variance / standard deviation / covariance / correlation, portfolio variance and return, Sharpe ratio |
-| `markowitz` | Portfolio expected return, variance, volatility and Sharpe; random long-only portfolio simulation (min-variance and max-Sharpe portfolios); approximate efficient frontier |
-| `capm` | Beta (covariance method), OLS regression of excess returns (alpha, beta, R², residuals), CAPM expected return, beta and return comparison helpers |
-| `monte_carlo` | Geometric Brownian Motion price simulation, terminal price summaries (mean, median, percentiles), bull / base / bear scenario analysis |
-| `data_loader` | Downloads historical prices, a market benchmark, and a risk-free rate using [yfinance](https://github.com/ranaroussi/yfinance) |
+- **Single `analyze_portfolio()` Entry Point**:
+  - Validates weights (must sum to 1.0, non-negative), unique tickers, ticker existence, and sufficient history ($\ge 252$ trading days).
+  - Returns expected return, volatility, Sharpe ratio, portfolio beta, CAPM expected return, VaR/CVaR suite, and Monte Carlo scenario summaries in one unified, JSON-serializable object.
+- **Correlated Monte Carlo Simulation (`risk_engine.monte_carlo`)**:
+  - **Cholesky Decomposition**: Uses the Cholesky factor of the covariance matrix ($\mathbf{\Sigma} = L L^T$) to simulate correlated shocks across assets rather than independent shocks.
+  - **Capital-Weighted Portfolio Paths**: Normalizes asset paths by initial prices $S_0$ so weights model capital allocation rather than raw share counts.
+  - **Scenario Analysis**: Partitions simulated paths into **Bull Market** (top 10%), **Base Case** (middle 80%), and **Bear Market** (bottom 10%) with scenario terminal values.
+- **Value at Risk & Expected Shortfall (`risk_engine.var`)**:
+  - Historical VaR & CVaR (95% and 99%).
+  - Parametric Gaussian VaR & CVaR.
+  - Cornish-Fisher Modified VaR (accounting for skewness and excess kurtosis).
+  - Out-of-sample rolling VaR backtesting with Kupiec POF Likelihood Ratio test.
+- **Capital Asset Pricing Model (`risk_engine.capm`)**:
+  - Covariance beta, excess returns, and OLS regression ($\alpha, \beta, R^2, \text{residuals}$).
+  - Beta and Return comparison tables.
+- **Markowitz Modern Portfolio Theory (`risk_engine.markowitz`)**:
+  - Random long-only portfolio simulation (Maximum Sharpe & Minimum Variance).
+  - Exact Pareto-optimal Efficient Frontier extraction.
+- **Data Loading (`risk_engine.data_loader`)**:
+  - Historical prices, market benchmarks (`^GSPC`), and risk-free rates (`^TNX`) via Yahoo Finance.
 
-## Getting started
 
-### Prerequisites
+## Installation
 
-- Python 3.11 or higher
-- pip
-
-### Installation
-
-```sh
+```bash
 git clone https://github.com/Priyansh956/Risk-engine-.git
 cd Risk-engine-
 
@@ -36,151 +60,151 @@ pip install -e .
 pip install -r requirements-dev.txt  # only needed for running tests and linting
 ```
 
-The notebook (`notebooks/main.ipynb`) also uses `matplotlib` and Jupyter, which are not installed by the commands above:
+---
 
-```sh
-pip install matplotlib jupyter
-```
+## Quickstart
 
-## Quick start
-
-The example below analyzes a three-stock portfolio. It needs an internet connection to download data.
+### 1. Unified Analysis (`analyze_portfolio`)
 
 ```python
-import numpy as np
+from risk_engine import analyze_portfolio
 
-from capm import calculate_market_returns, run_capm_regression
-from data_loader import fetch_market_data, fetch_risk_free_rate, fetch_stock_data
-from markowitz import portfolio_metrics, simulate_random_portfolios
-from risk_engine import (
-    calculate_annual_covariance_of_stocks,
-    calculate_annualized_return,
-    calculate_log_returns,
-)
-
-tickers = ["AAPL", "MSFT", "NKE"]
-weights = np.array([0.5, 0.3, 0.2])  # must sum to 1
-
-# 1. Load data
-prices = fetch_stock_data(tickers, start="2020-01-01")
-market_prices = fetch_market_data("^GSPC", start="2020-01-01")
-risk_free_rate = fetch_risk_free_rate()  # latest US 10-year Treasury yield, e.g. 0.042
-
-# 2. Returns and risk
-log_returns = calculate_log_returns(prices).dropna()
-annual_returns = calculate_annualized_return(log_returns)
-annual_cov = calculate_annual_covariance_of_stocks(log_returns)
-
-portfolio_return, volatility, sharpe = portfolio_metrics(
-    weights,
-    annual_returns.to_numpy(),
-    annual_cov.to_numpy(),
-    risk_free_rate,
-)
-print(f"Return: {portfolio_return:.2%}  Volatility: {volatility:.2%}  Sharpe: {sharpe:.2f}")
-
-# 3. Markowitz: simulate random portfolios and find the best ones
-simulation = simulate_random_portfolios(
-    annual_returns.to_numpy(),
-    annual_cov.to_numpy(),
-    risk_free_rate,
-    num_simulations=10_000,
+# Analyze a portfolio (e.g. 50% AAPL, 30% MSFT, 20% NVDA)
+result = analyze_portfolio(
+    tickers=["AAPL", "MSFT", "NVDA"],
+    weights=[0.5, 0.3, 0.2],
+    start_date="2021-01-01",
+    min_history=252,  # Requires at least 1 trading year
+    mc_time_horizon=252,  # 1-year forward forecast
+    mc_simulations=1000,  # 1,000 simulation paths
     random_state=42,
 )
-print("Max-Sharpe weights:", dict(zip(tickers, simulation["max_sharpe_weights"].round(3))))
 
-# 4. CAPM: beta, alpha and R² against the market
-market_returns = calculate_market_returns(market_prices)
-capm = run_capm_regression(log_returns, market_returns, risk_free_rate=risk_free_rate)
-print(capm["beta"])
+print(f"Annual Expected Return: {result.portfolio_return:.2%}")
+print(f"Annual Volatility:      {result.portfolio_volatility:.2%}")
+print(f"Sharpe Ratio:           {result.sharpe_ratio:.2f}")
+print(f"Portfolio Beta:         {result.portfolio_beta:.2f}")
+print(f"CAPM Expected Return:   {result.capm_expected_return:.2%}")
+
+# Value at Risk & Expected Shortfall
+print(f"95% Historical VaR:     {result.var_metrics['historical_var_95']:.2%}")
+print(f"95% Historical CVaR:    {result.var_metrics['historical_cvar_95']:.2%}")
+
+# Monte Carlo Terminal Summary
+mc = result.monte_carlo_summary
+print(f"MC Median Outcome:      ${mc['terminal_median']:.2f}")
+print(f"MC Worst Case (5th %):  ${mc['terminal_5th_percentile']:.2f}")
+print(f"MC Best Case (95th %):  ${mc['terminal_95th_percentile']:.2f}")
+
+# JSON-ready dictionary output (safe for APIs & web applications)
+data_dict = result.to_dict(include_paths=False)
 ```
 
-Monte Carlo price simulation for each stock:
+### 2. Empirical VaR Backtesting
 
 ```python
-from monte_carlo import calculate_daily_drift, simulate_gbm_prices, summarize_terminal_prices
+from risk_engine import backtest_var, calculate_log_returns, fetch_stock_data
 
-paths = simulate_gbm_prices(
-    initial_prices=prices.iloc[-1],
-    drift=calculate_daily_drift(log_returns),
-    daily_std=log_returns.std(),
-    time_horizon=252,  # trading days (about one year)
-    num_simulations=1_000,
-    random_state=1,
-)
-print(summarize_terminal_prices(paths, asset_names=tickers))
+# Backtest whether 95% Parametric VaR underestimates real market losses
+prices = fetch_stock_data(["AAPL", "MSFT"], start="2020-01-01", end="2024-01-01")
+returns = calculate_log_returns(prices).dropna()
+port_returns = returns["AAPL"] * 0.6 + returns["MSFT"] * 0.4
+
+bt_hist = backtest_var(port_returns, window=252, confidence=0.95, method="historical")
+bt_param = backtest_var(port_returns, window=252, confidence=0.95, method="parametric")
+
+print(f"Historical VaR Breach Rate: {bt_hist['breach_rate']:.2%}")  # ~5.4% (near 5% expected)
+print(f"Parametric VaR Breach Rate: {bt_param['breach_rate']:.2%}")  # ~6.6% (fat tails understate risk)
 ```
 
-> Use `simulate_gbm_prices` for per-stock simulations only for now. `simulate_portfolio_paths` has a known bug (see below).
+---
+
+## Return Conventions
+
+All returns throughout the engine are standardized on the **compounded effective annual return convention**:
+
+$$R_{\text{annual}} = \exp(\bar{r}_{\text{daily, log}} \times \text{trading\_days}) - 1$$
+
+- **Stock / Portfolio Return**: Compounded annualized return from daily log returns.
+- **Market Return**: Compounded annualized return from benchmark log returns.
+- **Risk-Free Rate**: Effective annual yield $R_f$ (e.g., 0.04 for 4.0%).
+- **Daily Risk-Free Rate**: $(1 + R_f)^{1/252} - 1$.
+- **Market Risk Premium**: $R_m - R_f$.
+- **CAPM Expected Return**: $R_f + \beta (R_m - R_f)$.
+
+---
 
 ## Project layout
 
 ```
-src/
-├── risk_engine/   # returns and core risk metrics
-├── markowitz/     # portfolio metrics, random-portfolio simulation, efficient frontier
-├── capm/          # beta, regression, CAPM expected return
-├── monte_carlo/   # GBM simulation and scenario analysis
-└── data_loader/   # yfinance data access
-tests/             # pytest suite for every module
-notebooks/         # main.ipynb: step-by-step walkthrough of the analysis
+├── app.py                             # Interactive Streamlit Web App
+├── pyproject.toml                     # Package metadata, dependencies, & tool configs
+├── requirements.txt                   # Production dependencies
+├── requirements-dev.txt               # Testing & linting tools
+├── src/
+│   └── risk_engine/                   # Primary Python package
+│       ├── __init__.py                # Package-level exports
+│       ├── returns.py                 # Return calculations
+│       ├── risk.py                    # Volatility, covariance, & correlation metrics
+│       ├── markowitz.py               # Modern Portfolio Theory & Efficient Frontier
+│       ├── capm.py                    # CAPM regression & beta analysis
+│       ├── monte_carlo.py             # Correlated GBM simulation & scenario filtering
+│       ├── var.py                     # VaR, CVaR, & rolling backtesting
+│       ├── data_loader.py             # Historical data loading (yfinance)
+│       └── portfolio.py               # analyze_portfolio orchestrator & PortfolioAnalysisResult
+├── tests/                             # Comprehensive 54-test pytest suite
+└── notebooks/
+    └── main.ipynb                     # Step-by-step exploratory research walkthrough
 ```
 
 ## Development
 
-```sh
-pytest             # run the test suite
-ruff check .       # lint
-ruff format .      # format
+```bash
+pytest             # Run the full test suite (54 tests passed)
+ruff check .       # Fast linting
+ruff format .      # Fast code formatting
+streamlit run app.py  # Run interactive web application
 ```
 
-CI runs the same lint, format check, and tests on every push to `main` / `develop` and on pull requests to `main`.
+CI runs the same lint, format check, and tests on every push and pull request.
 
-## Known limitations
+---
 
-These are known issues in the current version. They are being tracked and will be fixed.
+## Known Limitations & Findings
 
-### Monte Carlo
+- **Fat Tails in Returns**: Geometric Brownian Motion assumes returns follow a log-normal distribution. In our 500-day rolling backtest on real equities, 95% Parametric Gaussian VaR experienced a 6.6% breach rate (understating risk by ~32%), demonstrating why Historical and Cornish-Fisher Modified VaR are critical for real-world risk management.
+- **Markowitz Random Sampling**: `simulate_random_portfolios` approximates the efficient frontier by random uniform sampling. Exact quadratic programming with constraints (`scipy.optimize`) is on the roadmap.
+- **Data Source**: Data is fetched via Yahoo Finance (`yfinance`). Ensure valid ticker symbols and sufficient trading history ($\ge 252$ trading days) for robust estimation.
 
-- **`simulate_portfolio_paths` weights raw prices instead of capital (bug).** It computes `Σ wᵢ × Pᵢ(t)` on raw simulated prices, which models holding `wᵢ` *shares* of each stock rather than investing a fraction `wᵢ` of your *money* in it. A stock with a high share price therefore dominates the result regardless of the weights. For example, with 50/50 weights on two stocks priced near 100 and 3,000, about 98% of the simulated portfolio's starting value comes from the more expensive stock. **Portfolio-level Monte Carlo results from this function should not be trusted yet.** The fix is to apply weights to price paths normalized by each stock's starting price (or to returns).
-- **Simulated stocks are uncorrelated.** `simulate_gbm_returns` draws independent random shocks for each stock, ignoring the correlations between them. This understates portfolio risk. The fix is to generate correlated shocks from the covariance matrix (Cholesky decomposition).
-- **Returns are assumed normally distributed** (standard Geometric Brownian Motion), so extreme market moves are underrepresented.
-- **`simulate_gross_profit` is out of scope.** It simulates company revenue and cost of goods sold, which is corporate-finance logic rather than portfolio analysis, and it is planned for removal.
-
-### Optimization
-
-- `simulate_random_portfolios` approximates the efficient frontier by random sampling. It does not solve the optimization exactly and cannot handle constraints such as weight limits.
-
-### Data and defaults
-
-- Data comes from yfinance, an unofficial Yahoo Finance wrapper, so availability and data quality are outside this project's control.
-- Defaults are US-centric: the S&P 500 (`^GSPC`) as the market benchmark and the US 10-year Treasury yield (`^TNX`) as the risk-free rate. Indian markets are not yet supported out of the box.
-- Invalid tickers or missing data are not yet reported with clear error messages.
-
-### Missing features
-
-- There is no Value at Risk (VaR), Conditional VaR, or drawdown analysis yet.
-- There is no web interface or API. The project is currently used as a Python library or through the notebook.
+---
 
 ## Roadmap
 
-- [ ] Fix the Monte Carlo issues listed above
-- [ ] Single `analyze_portfolio()` entry point that validates inputs and returns a full report
-- [ ] Clear error handling for invalid tickers, weights, and missing data
-- [ ] Value at Risk (historical, parametric, Monte Carlo), Conditional VaR, maximum drawdown
-- [ ] Exact constrained optimization (min-variance, max-Sharpe) with `scipy`
-- [ ] Web app for trying your own portfolio
+- [x] Fix Monte Carlo capital weighting and Cholesky correlation
+- [x] Single `analyze_portfolio()` entry point with complete validation
+- [x] Robust error handling for invalid tickers, duplicate tickers, weights, and missing data
+- [x] Value at Risk (historical, parametric, modified), Conditional VaR, and backtesting
+- [x] Interactive web application (`app.py`) for Streamlit deployment
+- [x] MIT License and visual assets in documentation
+- [ ] Exact constrained optimization (min-variance, max-Sharpe) with `scipy.optimize`
 - [ ] Support for Indian markets (NSE tickers, Nifty 50 benchmark, Indian risk-free rate)
-- [ ] Publish to PyPI under a single package namespace
+- [ ] Publish to PyPI under `quant-risk-engine`
+
+---
 
 ## Disclaimer
 
 This project is for educational and informational purposes only and is not financial advice. Results are based on historical data, which does not predict future performance. Do not make investment decisions based solely on this tool.
 
+---
+
 ## Contributing
 
-Contributions and bug reports are welcome. Please open an issue to discuss larger changes first. Before submitting a pull request, make sure `pytest`, `ruff check .`, and `ruff format --check .` all pass.
+Contributions and bug reports are welcome. Before submitting a pull request, ensure `pytest`, `ruff check .`, and `ruff format --check .` all pass.
+
+---
 
 ## License
 
-Released under the MIT License. See the [LICENSE](LICENSE) file for details.
+Released under the [MIT License](LICENSE).
+

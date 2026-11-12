@@ -35,6 +35,9 @@ from risk_engine.returns import (
 from risk_engine.risk import (
     calculate_annual_covariance_of_stocks,
 )
+from risk_engine.var import (
+    calculate_portfolio_var_cvar,
+)
 
 
 @dataclass
@@ -51,6 +54,7 @@ class PortfolioAnalysisResult:
     individual_betas: pd.Series
     weights: pd.Series
     risk_free_rate: float
+    var_metrics: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
 
     def to_dict(self, include_paths: bool = False) -> dict[str, Any]:
@@ -102,6 +106,7 @@ class PortfolioAnalysisResult:
             "individual_betas": {str(k): float(v) for k, v in self.individual_betas.items()},
             "weights": {str(k): float(v) for k, v in self.weights.items()},
             "risk_free_rate": float(self.risk_free_rate),
+            "var_metrics": {str(k): float(v) for k, v in self.var_metrics.items()},
             "warnings": list(self.warnings),
         }
 
@@ -181,6 +186,10 @@ def analyze_portfolio(
 
     port_return = portfolio_expected_return(weights_arr, annual_returns.values)
     port_vol = portfolio_volatility(weights_arr, annual_cov.values)
+
+    # Portfolio daily returns & VaR / CVaR calculations
+    port_daily_returns = np.dot(log_returns.values, weights_arr)
+    var_metrics = calculate_portfolio_var_cvar(port_daily_returns, [0.95, 0.99])
 
     # 3. Risk-free rate
     if risk_free_rate is None:
@@ -272,5 +281,6 @@ def analyze_portfolio(
         individual_betas=ind_betas,
         weights=pd.Series(weights_arr, index=tickers, name="Weights"),
         risk_free_rate=risk_free_rate,
+        var_metrics=var_metrics,
         warnings=warnings_list,
     )

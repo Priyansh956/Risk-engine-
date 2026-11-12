@@ -1,6 +1,9 @@
+matplotlib
 numpy
 pandas
 scipy
 statsmodels
+streamlit
 yfinance
+
 
